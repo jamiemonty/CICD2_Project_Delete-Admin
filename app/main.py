@@ -10,10 +10,6 @@ load_dotenv()
 app = FastAPI(title="Admin User Deletion API")
 
 
-@app.get("/api/admin/users", status_code=status.HTTP_200_OK)
-def get_users():
-    return {"users": users}
-
 @app.delete("/api/admin/delete", status_code=status.HTTP_200_OK)
 def delete_user(request: UserDeleteRequest):
     global users
