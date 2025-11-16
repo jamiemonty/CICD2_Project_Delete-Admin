@@ -4,6 +4,9 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY", "JAMIESKEY")
 ALGORITHM = "HS256"
@@ -11,10 +14,11 @@ ALGORITHM = "HS256"
 app = FastAPI(title="Admin User Deletion API")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
+
 def get_current_admin(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(status_code=401, detail="Invalid token", headers={"WWW-Authenticate": "Bearer"})
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience="delete-service")
         role = payload.get("role")
         email = payload.get("sub")
         if role != "admin":
