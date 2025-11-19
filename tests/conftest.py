@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app.main import app, get_db
 
 # Define test database path
-TEST_DB = "users.db"
+TEST_DB = "users_test.db"
 
 # Override the get_db dependency to use the test database
 def override_get_db():
@@ -42,4 +42,5 @@ def setup_test_db():
 
 @pytest.fixture
 def client():
+    app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
