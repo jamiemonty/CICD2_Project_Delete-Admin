@@ -45,3 +45,5 @@ def delete_user(user_id: int, admin: dict = Depends(get_current_admin)):# get ad
     conn.commit()
     conn.close()
     return {"message": f"User {user['email']} deleted by admin {admin['email']}"}
+
+@app.patch("/api/admin/update/{user_id}")
