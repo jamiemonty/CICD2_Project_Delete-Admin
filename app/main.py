@@ -1,6 +1,7 @@
 # app/main.py 
 import sqlite3
 from fastapi import FastAPI, Depends, HTTPException, status
+from app.schemas import DeleteResponse, UserUpdate, UserOut, DeletedUserSummary
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 import os
@@ -33,7 +34,7 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 # Endpoint to delete a user by user_id, requires admin authentication
-@app.delete("/api/admin/delete/{user_id}")
+@app.delete("/api/admin/delete/{user_id}", response_model=DeleteResponse)
 def delete_user(user_id: int, admin: dict = Depends(get_current_admin)):# get admin user from token
     conn = get_db()
     cursor = conn.cursor()
@@ -44,4 +45,56 @@ def delete_user(user_id: int, admin: dict = Depends(get_current_admin)):# get ad
     cursor.execute("DELETE FROM users WHERE user_id=?", (user_id,))
     conn.commit()
     conn.close()
-    return {"message": f"User {user['email']} deleted by admin {admin['email']}"}
+    return DeleteResponse(
+        message=f"User {user['email']} deleted by admin {admin['email']}",
+        deleted=DeletedUserSummary(user_id=user_id, email=user["email"])
+    )
+
+@app.patch("/api/admin/users/{user_id}", response_model=UserOut)
+def patch_user(user_id: int, payload: UserUpdate, admin: dict = Depends(get_current_admin)):
+    conn = get_db()
+    cursor = conn.cursor()
+    #Check if the user exists in the database.
+    cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    #Collect only the fields that are set in the request json (patch/partial update section)
+    data = payload.model_dump(exclude_unset=True)
+
+    if not data:
+        conn.close()
+        raise HTTPException(status_code=400, detail="No fields to update")
+    #Build parameterised UPDATE query to avoid SQL injection
+    set_parts = []
+    values = []
+    for field in ("name", "email", "age", "role"):
+        if field in data:
+            set_parts.append(f"{field}=?")
+            values.append(data[field])
+
+    sql = f"UPDATE users SET {', '.join(set_parts)} WHERE user_id=?"
+    try:
+        cursor.execute(sql, (*values, user_id))
+        conn.commit()
+    except sqlite3.IntegrityError as e:
+        conn.rollback()
+        conn.close()
+    #Handle if user tries to update to an email that already exists
+        if "UNIQUE constraint failed: users.email" in str(e):
+            raise HTTPException(status_code=409, detail="Email already exists")
+        raise HTTPException(status_code=400, detail="Failed to update user")
+
+    #return the updated user
+    cursor.execute("SELECT user_id, name, email, age, role FROM users WHERE user_id=?", (user_id,))
+    updated_user = cursor.fetchone()
+    conn.close()
+    return {
+        "user_id": updated_user["user_id"],
+        "name": updated_user["name"],
+        "email": updated_user["email"],
+        "age": updated_user["age"],
+        "role": updated_user["role"]
+    }
+
