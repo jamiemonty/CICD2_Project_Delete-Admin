@@ -1,6 +1,7 @@
 # app/main.py 
 import sqlite3
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from docu_serve.schemas import DeleteResponse, UserUpdate, UserOut, DeletedUserSummary
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -23,6 +24,14 @@ AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{AUTH_SERVICE_URL}/api/users/login")
 
 app = FastAPI(title="Admin User Deletion API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def publish_event(event_type:str, payload: dict):
     #Publishes the event to RabbitMQ
