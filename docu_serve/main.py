@@ -1,7 +1,8 @@
 # app/main.py 
 import sqlite3
 from fastapi import FastAPI, Depends, HTTPException, status
-from app.schemas import DeleteResponse, UserUpdate, UserOut, DeletedUserSummary
+from fastapi.middleware.cors import CORSMiddleware
+from docu_serve.schemas import DeleteResponse, UserUpdate, UserOut, DeletedUserSummary
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 import os
@@ -13,12 +14,24 @@ load_dotenv()
 #settings for JWT 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001") 
 
 # Loaded from .env.rabbit (in Codespaces) 
 RABBIT_URL = os.getenv("RABBIT_URL")
 
+# OAuth2 scheme definition OAuth2PasswordBearer for token extraction
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{AUTH_SERVICE_URL}/api/users/login")
 
 app = FastAPI(title="Admin User Deletion API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def publish_event(event_type:str, payload: dict):
     #Publishes the event to RabbitMQ
@@ -35,8 +48,6 @@ async def publish_event(event_type:str, payload: dict):
     except Exception as e:
         print(f"Failed to publish event {event_type}: {e}")
 
-# OAuth2 scheme definition OAuth2PasswordBearer for token extraction
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="https://automatic-pancake-v4pj9649wqvfx6pg-8001.app.github.dev/api/users/login")
 
 # Dependency to get current admin user from token, raises exception if not admin
 def get_current_admin(token: str = Depends(oauth2_scheme)):
