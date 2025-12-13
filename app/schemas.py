@@ -1,6 +1,14 @@
 from pydantic import EmailStr, BaseModel
 from typing import Optional
 
+class DeleteResponse(BaseModel):
+    message: str
+    deleted: DeletedUserSummary
+
+class DeletedUserSummary(BaseModel):
+    user_id: int
+    email: EmailStr
+
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -13,6 +21,3 @@ class UserOut(BaseModel):
     email: EmailStr
     age: int
     role: str
-
-class UserDeleteRequest(BaseModel):
-    email: EmailStr
