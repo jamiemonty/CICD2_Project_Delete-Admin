@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 from jose import jwt
 from datetime import datetime, timedelta
-from app.main import SECRET_KEY, ALGORITHM, get_db
+from docu_serve.main import SECRET_KEY, ALGORITHM, get_db
 import sqlite3
 import os
 

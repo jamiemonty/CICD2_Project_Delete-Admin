@@ -2,7 +2,7 @@ import os
 import sqlite3
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app, get_db
+from docu_serve.main import app, get_db
 
 # Define test database path
 TEST_DB = "users_test.db"
