@@ -1,40 +1,59 @@
 services:
   db:
     image: postgres:17-alpine
-    env_file: .env.docker
+    container_name: admin-db
+    environment:
+      POSTGRES_USER: adminuser
+      POSTGRES_PASSWORD: adminpass123
+      POSTGRES_DB: admindb
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-    ports:
+      - admin-postgres-data:/var/lib/postgresql/data
+    ports: 
       - "5434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER:-app}\" -d \"$${POSTGRES_DB:-appdb}\""]
+      test: ["CMD-SHELL", "pg_isready -U adminuser -d admindb"]
       interval: 5s
       retries: 10
-    restart: unless-stopped
- 
+    restart:  unless-stopped
+    networks: 
+      - microservices-network
+
   api:
-    build: .
-    env_file: .env.docker
+    build:  .
+    container_name: admin-api
     environment:
       - APP_ENV=docker
+      - AUTH_SERVICE_URL=http://auth-api:8000
+      - DATABASE_URL=postgresql+psycopg2://adminuser:adminpass123@admin-db:5432/admindb
+      - RABBIT_URL=amqps://ykvaygzy:Kg8o0HCEw9hRygtPpnQ3bjWv7N9KU0xZ@stingray.rmq.cloudamqp.com/ykvaygzy
+      - SECRET_KEY=JAMIESKEY
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "8002:8000"
     restart: unless-stopped
-    command: sh -c "python init_db.py && uvicorn docu_serve.main:app --host 0.0.0.0 --port 8000"
+    networks:
+      - microservices-network
 
   worker:
-    build: .
-    env_file: .env.docker
+    build: . 
+    container_name: admin-worker
     environment:
       - APP_ENV=docker
-    command: sh -c "sleep 10 && python worker.py"
+      - DATABASE_URL=postgresql+psycopg2://adminuser:adminpass123@admin-db:5432/admindb
+      - RABBIT_URL=amqps://ykvaygzy:Kg8o0HCEw9hRygtPpnQ3bjWv7N9KU0xZ@stingray.rmq.cloudamqp.com/ykvaygzy
     depends_on:
       db:
         condition: service_healthy
+    command: sh -c "sleep 10 && python worker.py"
     restart: unless-stopped
- 
+    networks: 
+      - microservices-network
+
 volumes:
-  postgres-data: {}
+  admin-postgres-data:
+
+networks:
+  microservices-network:
+    external: true

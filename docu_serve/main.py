@@ -25,7 +25,7 @@ RABBIT_URL = os.getenv("RABBIT_URL")
 
 # OAuth2 scheme definition OAuth2PasswordBearer for token extraction
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{AUTH_SERVICE_URL}/api/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 app = FastAPI(title="Admin User Deletion API")
 
@@ -71,34 +71,34 @@ def get_current_admin(token: str = Depends(oauth2_scheme)):
 # Now using PostgreSQL via SQLAlchemy instead of SQLite
 
 
-# @app.post("/api/users/login")
-# async def login_proxy(form_data: OAuth2PasswordRequestForm = Depends()):
+@app.post("/api/users/login")
+async def login_proxy(form_data: OAuth2PasswordRequestForm = Depends()):
    
-#     try:
-#         async with httpx.AsyncClient(timeout=10.0) as client:
-#             response = await client.post(
-#                 f"{AUTH_SERVICE_URL}/api/users/login",
-#                 data={
-#                     "username": form_data.username,
-#                     "password": form_data.password,
-#                     "grant_type": "password"  # Required by OAuth2
-#                 },
-#                 headers={"Content-Type": "application/x-www-form-urlencoded"}
-#             )
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{AUTH_SERVICE_URL}/api/users/login",
+                data={
+                    "username": form_data.username,
+                    "password": form_data.password,
+                    "grant_type": "password"  # Required by OAuth2
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
             
-#             if response.status_code != 202:  # Your auth service returns 202
-#                 raise HTTPException(
-#                     status_code=status.HTTP_401_UNAUTHORIZED,
-#                     detail="Incorrect username or password",
-#                     headers={"WWW-Authenticate":  "Bearer"},
-#                 )
+            if response.status_code != 202:  # Your auth service returns 202
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect username or password",
+                    headers={"WWW-Authenticate":  "Bearer"},
+                )
             
-#             return response.json()
-#     except httpx.RequestError as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-#             detail=f"Auth service unavailable at {AUTH_SERVICE_URL}.  Make sure it's running on port 8001. Error: {str(e)}"
-#         )
+            return response.json()
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Auth service unavailable at {AUTH_SERVICE_URL}.  Make sure it's running on port 8001. Error: {str(e)}"
+        )
 # Endpoint to delete a user by user_id, requires admin authentication
 @app.delete("/api/admin/delete/{user_id}", response_model=DeleteResponse)
 async def delete_user(user_id: int, admin: dict = Depends(get_current_admin), db: Session = Depends(get_db)):
