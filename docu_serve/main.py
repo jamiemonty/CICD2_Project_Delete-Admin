@@ -1,6 +1,8 @@
-# app/main.py 
-from docu_serve.database import get_db
-from docu_serve.models import User
+# docu_serve/main.py 
+from contextlib import asynccontextmanager
+from docu_serve.database import get_db, engine
+from docu_serve.models import Base, User
+from docu_serve.schemas import DeleteResponse, DeletedUserSummary, UserUpdate, UserOut
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -12,18 +14,17 @@ import json
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+
 #load environment variables
 load_dotenv()
 #settings for JWT 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001") 
-
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-api:8000")
 # Loaded from .env.rabbit (in Codespaces) 
 RABBIT_URL = os.getenv("RABBIT_URL")
 
 # OAuth2 scheme definition OAuth2PasswordBearer for token extraction
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 
