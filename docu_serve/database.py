@@ -2,12 +2,12 @@ import os
 import time
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy. exc import OperationalError
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.exc import OperationalError
  
 # Pick env file by APP_ENV (default dev)
 envfile = {
-    "dev": ".env. dev",
+    "dev": ".env.dev",
     "docker": ".env.docker",
     "test": ".env.test",
 }. get(os.getenv("APP_ENV", "dev"), ".env.dev")
@@ -21,7 +21,7 @@ DELAY = float(os.getenv("DB_RETRY_DELAY", "1.5"))
  
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
  
-# small retry (harmless for SQLite, useful for Postgres)
+# Small retry (harmless for SQLite, useful for Postgres)
 engine = None
 for attempt in range(RETRIES):
     try:
@@ -37,9 +37,12 @@ for attempt in range(RETRIES):
             time.sleep(DELAY)
         else:
             raise Exception(
-                f"Could not connect to database at {DATABASE_URL} after {RETRIES} retries"
+                f"Could not connect to database at '{DATABASE_URL}' after {RETRIES} retries"
             ) from e
  
+
+Base = declarative_base()
+
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False)
  
  
@@ -47,5 +50,5 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
-    finally:
+    finally: 
         db.close()
