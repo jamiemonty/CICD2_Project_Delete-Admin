@@ -10,6 +10,10 @@ import os
 import aio_pika
 import json
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+from docu_serve.models import Base
+from docu_serve.database import engine
+
 #load environment variables
 load_dotenv()
 #settings for JWT 
@@ -24,7 +28,17 @@ RABBIT_URL = os.getenv("RABBIT_URL")
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{AUTH_SERVICE_URL}/api/users/login")
 
-app = FastAPI(title="Admin User Deletion API")
+
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create database tables
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created")
+    yield
+    
+app = FastAPI(title="Admin User Deletion API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

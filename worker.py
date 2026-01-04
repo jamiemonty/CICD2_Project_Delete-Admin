@@ -34,7 +34,7 @@ async def main():
                     data["email"],
                     data["age"],
                     data["role"],
-                    "N/A"  # hashed_password not needed in admin DB
+                    data.get("hashed_password", "N/A") # hashed_password not needed in admin DB
                 ))
 
                 conn.commit()
