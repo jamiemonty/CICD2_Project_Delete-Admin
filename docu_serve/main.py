@@ -3,7 +3,6 @@ from docu_serve.database import get_db
 from docu_serve.models import User
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from docu_serve.schemas import DeleteResponse, UserUpdate, UserOut, DeletedUserSummary
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 import httpx
@@ -27,7 +26,17 @@ RABBIT_URL = os.getenv("RABBIT_URL")
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
-app = FastAPI(title="Admin User Deletion API")
+
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create database tables
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created")
+    yield
+    
+app = FastAPI(title="Admin User Deletion API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

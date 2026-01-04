@@ -1,5 +1,3 @@
-import aio_pika
-import os
 import asyncio
 import json
 from docu_serve.database import get_db
