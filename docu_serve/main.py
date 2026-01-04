@@ -1,10 +1,8 @@
 # app/main.py 
-import sqlite3
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
-from 
 import httpx
 import os
 import aio_pika
@@ -13,7 +11,7 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from docu_serve.models import User, Base
 from docu_serve.schemas import UserUpdate, UserOut, DeleteResponse, DeletedUserSummary
-from docu_serve.database import get_db
+from docu_serve.database import get_db, engine
 from sqlalchemy.orm import Session
 
 #load environment variables

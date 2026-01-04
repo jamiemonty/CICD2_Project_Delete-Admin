@@ -26,7 +26,7 @@ async def main():
                 cur = conn.cursor()
 
                 cur.execute("""
-                    INSERT OR IGNORE INTO users (user_id, name, email, age, role, hashed_password)
+                    INSERT OR IGNORE INTO users_admin (user_id, name, email, age, role, hashed_password)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (
                     data["user_id"],

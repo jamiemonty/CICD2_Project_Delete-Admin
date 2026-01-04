@@ -7,11 +7,11 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = "users_admin"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(String(255), nullable=False)
-    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)  # NOT 'id'!
+    name:  Mapped[str] = mapped_column(String(255), nullable=False)  # NOT 'full_name'!
+    email:  Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    role: Mapped[str] = mapped_column(String(50), nullable=False, default="user")
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)  # NOT 'password'! 
+    role: Mapped[str] = mapped_column(String(50), default="user", nullable=False)
