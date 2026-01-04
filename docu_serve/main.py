@@ -1,4 +1,6 @@
 # app/main.py 
+from docu_serve.database import get_db
+from docu_serve.models import User
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -8,12 +10,8 @@ import os
 import aio_pika
 import json
 from dotenv import load_dotenv
-from contextlib import asynccontextmanager
-from docu_serve.models import User, Base
-from docu_serve.schemas import UserUpdate, UserOut, DeleteResponse, DeletedUserSummary
-from docu_serve.database import get_db, engine
 from sqlalchemy.orm import Session
-
+from sqlalchemy import text
 #load environment variables
 load_dotenv()
 #settings for JWT 
@@ -26,7 +24,7 @@ RABBIT_URL = os.getenv("RABBIT_URL")
 
 # OAuth2 scheme definition OAuth2PasswordBearer for token extraction
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{AUTH_SERVICE_URL}/api/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 
 
@@ -78,11 +76,13 @@ def get_current_admin(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise credentials_exception
     
+# Dependency to get database connection
+# Now using PostgreSQL via SQLAlchemy instead of SQLite
 
 
 @app.post("/api/users/login")
 async def login_proxy(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Proxy login requests to auth service"""
+   
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
@@ -90,25 +90,24 @@ async def login_proxy(form_data: OAuth2PasswordRequestForm = Depends()):
                 data={
                     "username": form_data.username,
                     "password": form_data.password,
-                    "grant_type": "password"
+                    "grant_type": "password"  # Required by OAuth2
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"}
             )
             
-            if response.status_code != 202:
+            if response.status_code != 202:  # Your auth service returns 202
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect username or password",
-                    headers={"WWW-Authenticate": "Bearer"},
+                    headers={"WWW-Authenticate":  "Bearer"},
                 )
             
             return response.json()
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Auth service unavailable.  Error: {str(e)}"
+            detail=f"Auth service unavailable at {AUTH_SERVICE_URL}.  Make sure it's running on port 8001. Error: {str(e)}"
         )
-    
 # Endpoint to delete a user by user_id, requires admin authentication
 @app.delete("/api/admin/delete/{user_id}", response_model=DeleteResponse)
 async def delete_user(user_id: int, admin: dict = Depends(get_current_admin), db: Session = Depends(get_db)):
@@ -117,7 +116,7 @@ async def delete_user(user_id: int, admin: dict = Depends(get_current_admin), db
         raise HTTPException(status_code=404, detail="User not found")
     
     user_email = user.email
-    db. delete(user) 
+    db.delete(user)
     db.commit()
     
     await publish_event("user.deleted", {"user_id": user_id, "email": user_email})
@@ -126,8 +125,7 @@ async def delete_user(user_id: int, admin: dict = Depends(get_current_admin), db
         deleted=DeletedUserSummary(user_id=user_id, email=user_email)
     )
 
-# Update patch endpoint
-@app. patch("/api/admin/users/{user_id}", response_model=UserOut)
+@app.patch("/api/admin/users/{user_id}", response_model=UserOut)
 async def patch_user(user_id: int, payload: UserUpdate, admin: dict = Depends(get_current_admin), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
@@ -137,7 +135,7 @@ async def patch_user(user_id: int, payload: UserUpdate, admin: dict = Depends(ge
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    # Update user fields using SQLAlchemy
+    # Update user fields
     for field, value in data.items():
         if hasattr(user, field):
             setattr(user, field, value)
@@ -156,14 +154,15 @@ async def patch_user(user_id: int, payload: UserUpdate, admin: dict = Depends(ge
         "user_id": user.user_id,
         "name": user.name,
         "email": user.email,
-        "age": user. age,
+        "age": user.age,
         "role": user.role
     })
     
     return {
         "user_id": user.user_id,
         "name": user.name,
-        "email": user. email,
+        "email": user.email,
         "age": user.age,
-        "role":  user.role
+        "role": user.role
     }
+
