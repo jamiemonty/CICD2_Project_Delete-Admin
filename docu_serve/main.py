@@ -7,6 +7,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
+from pybreaker import CircuitBreaker, CircuitBreakerError
 import httpx
 import os
 import aio_pika
@@ -28,8 +29,6 @@ RABBIT_URL = os.getenv("RABBIT_URL")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Create database tables
@@ -39,12 +38,11 @@ async def lifespan(app: FastAPI):
     
 app = FastAPI(title="Admin User Deletion API", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+#Configuration of circuit breaker for the authorization service
+auth_breaker = CircuitBreaker(
+    fail_max=3,
+    timeout_duration=30,
+    name="auth_service_breaker"
 )
 
 async def publish_event(event_type:str, payload: dict):
@@ -81,34 +79,65 @@ def get_current_admin(token: str = Depends(oauth2_scheme)):
 # Now using PostgreSQL via SQLAlchemy instead of SQLite
 
 
+# @app.post("/api/users/login")
+# async def login_proxy(form_data: OAuth2PasswordRequestForm = Depends()):
+   
+#     try:
+#         async with httpx.AsyncClient(timeout=10.0) as client:
+#             response = await client.post(
+#                 f"{AUTH_SERVICE_URL}/api/users/login",
+#                 data={
+#                     "username": form_data.username,
+#                     "password": form_data.password,
+#                     "grant_type": "password"  # Required by OAuth2
+#                 },
+#                 headers={"Content-Type": "application/x-www-form-urlencoded"}
+#             )
+            
+#             if response.status_code != 202:  # Your auth service returns 202
+#                 raise HTTPException(
+#                     status_code=status.HTTP_401_UNAUTHORIZED,
+#                     detail="Incorrect username or password",
+#                     headers={"WWW-Authenticate":  "Bearer"},
+#                 )
+            
+#             return response.json()
+#     except httpx.RequestError as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+#             detail=f"Auth service unavailable at {AUTH_SERVICE_URL}.  Make sure it's running on port 8001. Error: {str(e)}"
+#         )
+
 @app.post("/api/users/login")
 async def login_proxy(form_data: OAuth2PasswordRequestForm = Depends()):
    
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                f"{AUTH_SERVICE_URL}/api/users/login",
-                data={
-                    "username": form_data.username,
-                    "password": form_data.password,
-                    "grant_type": "password"  # Required by OAuth2
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
-            
-            if response.status_code != 202:  # Your auth service returns 202
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Incorrect username or password",
-                    headers={"WWW-Authenticate":  "Bearer"},
-                )
-            
-            return response.json()
-    except httpx.RequestError as e:
+        #wrap the request in the circuit breaker
+        response = await auth_breaker.call_async(
+            call_auth_service,
+            form_data.username,
+            form_data.password
+        )
+        return response.json()
+    except CircuitBreakerError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Auth service unavailable at {AUTH_SERVICE_URL}.  Make sure it's running on port 8001. Error: {str(e)}"
+            detail="Auth service is currently unavailable. Please try again later."
         )
+
+async def call_auth_service(username: str, password: str):
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.post(
+            f"{AUTH_SERVICE_URL}/api/users/login",
+            data={"username": username, "password": password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+        if response.status_code != 202:
+            raise HTTPException(
+                status_code=401, detail= "Invalid Admin Credentials")
+        
+        return response
+
 # Endpoint to delete a user by user_id, requires admin authentication
 @app.delete("/api/admin/delete/{user_id}", response_model=DeleteResponse)
 async def delete_user(user_id: int, admin: dict = Depends(get_current_admin), db: Session = Depends(get_db)):
