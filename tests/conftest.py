@@ -2,10 +2,18 @@
 """Test configuration and fixtures"""
 
 import pytest
+import os
+
+# Set up test environment variables FIRST, before importing main module
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["RABBIT_URL"] = "amqp://test:test@localhost:5672/"
+os.environ["AUTH_SERVICE_URL"] = "http://test-auth:8000"
+
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy. orm import sessionmaker
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from docu_serve.main import app, get_db
 from docu_serve.models import Base
