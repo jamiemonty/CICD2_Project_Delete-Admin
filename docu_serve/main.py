@@ -196,3 +196,16 @@ async def patch_user(user_id: int, payload: UserUpdate, admin: dict = Depends(ge
         "role": user.role
     }
 
+@app.get("/health")
+def health_check():
+    return {
+        "status": "ok",
+        "service": "admin-user-deletion",
+        "circuit_breakers": {
+            "auth_service":{
+                "state": auth_breaker.current_state,
+                "fail_counter": auth_breaker.fail_counter,
+                "name": auth_breaker.name
+            }
+        }
+    }
