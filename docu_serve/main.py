@@ -46,14 +46,14 @@ app = FastAPI(title="Admin User Deletion API", lifespan=lifespan)
 #Configuration of circuit breaker for the authorization service
 auth_breaker = CircuitBreaker(
     fail_max=3,
-    timeout_duration=30,
+    reset_timeout=30,
     name="auth_service_breaker"
 )
 
 #Configuration of circuit breaker for RabbitMQ
 rabbitmq_breaker = CircuitBreaker(
     fail_max=5,#more tolerant for message queues 
-    timeout_duration=60,#longer timeout for queues because they might be slower
+    reset_timeout=60,
     name="rabbitmq_breaker"
 )
 
