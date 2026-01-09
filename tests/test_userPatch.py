@@ -167,3 +167,48 @@ def test_patch_without_token(client):
     )
     
     assert response.status_code == 401
+    
+def test_patch_duplicate_email(client, db_session):
+    """Test patching with duplicate email returns 409"""
+    # Create first user
+    user1 = User(
+        name="User 1",
+        email="user1@test.com",
+        age=25,
+        hashed_password="hash",
+        role="user"
+    )
+    db_session.add(user1)
+    
+    # Create second user
+    user2 = User(
+        name="User 2",
+        email="user2@test. com",
+        age=30,
+        hashed_password="hash",
+        role="user"
+    )
+    db_session.add(user2)
+    db_session.commit()
+    db_session.refresh(user2)
+    
+    token = jwt.encode(
+        {
+            "sub": "admin@example.com",
+            "role": "admin",
+            "aud": "delete-service",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+    
+    # Try to change user2's email to user1's email
+    response = client.patch(
+        f"/api/admin/users/{user2.user_id}",
+        json={"email": "user1@test.com"},  # Duplicate! 
+        headers={"Authorization":  f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"].lower()
