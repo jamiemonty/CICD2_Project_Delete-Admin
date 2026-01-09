@@ -19,6 +19,25 @@ load_dotenv(envfile, override=True)
 RABBIT_URL = os.getenv("RABBIT_URL", "amqp://guest:guest@rabbitmq:5672/")
 print(f"Worker starting with RABBIT_URL: {RABBIT_URL}")
 
+async def connect_to_rabbitmq_with_retry():
+    """Connect to RabbitMQ with retry logic"""
+    max_retries = 10
+    retry_delay = 3
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"Attempting to connect to RabbitMQ (attempt {attempt + 1}/{max_retries})...")
+            connection = await aio_pika.connect_robust(RABBIT_URL)
+            print("Successfully connected to RabbitMQ")
+            return connection
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Failed to connect: {e}. Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+            else:
+                print(f"Failed to connect to RabbitMQ after {max_retries} attempts")
+                raise
+
 async def on_message(message:  aio_pika.IncomingMessage):
     """Handle incoming user registration messages"""
     async with message.process():
@@ -65,8 +84,8 @@ async def main():
     try:
         print("Connecting to RabbitMQ...")
         
-        # Connect to RabbitMQ
-        connection = await aio_pika.connect_robust(RABBIT_URL)
+        # Connect to RabbitMQ with retry logic
+        connection = await connect_to_rabbitmq_with_retry()
         channel = await connection.channel()
         
         # Declare exchange

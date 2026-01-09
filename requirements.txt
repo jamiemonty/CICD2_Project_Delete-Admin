@@ -32,7 +32,7 @@ pluggy==1.6.0
 propcache==0.4.1
 psycopg2-binary==2.9.10
 pyasn1==0.6.1
-pybreaker==1.0.2
+pybreaker==1.2.0
 pycodestyle==2.14.0
 pycparser==2.23
 pydantic==2.11.9

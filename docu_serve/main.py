@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
 import logging
+import asyncio
 
 #load environment variables
 load_dotenv()
@@ -57,6 +58,24 @@ rabbitmq_breaker = CircuitBreaker(
     name="rabbitmq_breaker"
 )
 
+async def get_rabbitmq_connection():
+    """Connect to RabbitMQ with retry logic"""
+    max_retries = 5
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            connection = await aio_pika.connect_robust(RABBIT_URL, timeout=5.0)
+            logger.info("Successfully connected to RabbitMQ")
+            return connection
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"RabbitMQ connection attempt {attempt + 1} failed, retrying in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error(f"Failed to connect to RabbitMQ after {max_retries} attempts: {str(e)}")
+                raise
+
 async def publish_event(event_type:str, payload: dict):
     #Publishes the event to RabbitMQ with circuit breaker protection
     try:
@@ -67,8 +86,8 @@ async def publish_event(event_type:str, payload: dict):
         _log_failed_event(event_type, payload)
 
 async def _publish_to_rabbitmq(event_type: str, payload: dict):
-    #Internal function taht actually publishes to RabbitMQ
-    connection = await aio_pika.connect_robust(RABBIT_URL, timeout=5.0)
+    #Internal function that actually publishes to RabbitMQ
+    connection = await get_rabbitmq_connection()
     try:
         channel = await connection.channel()
         exchange = await channel.declare_exchange("user_events", aio_pika.ExchangeType.TOPIC,
@@ -76,7 +95,7 @@ async def _publish_to_rabbitmq(event_type: str, payload: dict):
         )
         message = aio_pika.Message(body=json.dumps(payload).encode())
         await exchange.publish(message, routing_key=event_type)
-        print(f"Published event {event_type} to RabbitMQ")
+        logger.info(f"Published event {event_type} to RabbitMQ")
     finally:
         await connection.close()
 
@@ -148,6 +167,14 @@ async def login_proxy(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Auth service is currently unavailable. Please try again later."
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in login_proxy: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during login"
         )
 
 async def call_auth_service(username: str, password: str):
