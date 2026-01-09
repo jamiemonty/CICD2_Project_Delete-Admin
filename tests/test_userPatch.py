@@ -43,7 +43,7 @@ def test_patch_user_name_success(client, db_session):
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "New Name"
-    assert data["email"] == "patch@test. com"
+    assert data["email"] == "patch@test.com"
 
 
 def test_patch_multiple_fields(client, db_session):
