@@ -1,6 +1,16 @@
-__pycache__/
-.ipynb_checkpoints/
-*.pyc
-venv/
+# Environment files
 .env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.sqlite
+
+# Testing
+.coverage
+htmlcov/
+
+# Logs
+*.log
 failed_events.log
