@@ -209,3 +209,26 @@ def health_check():
             }
         }
     }
+
+@app.get("/health/detailed")
+def detailed_health(db: Session = Depends(get_db)):
+    health_status = {
+        "status": "healthy",
+        "service": "admin-user-deletion",
+        "checks": {}
+    }
+
+    try:
+        db.execute(text("SELECT 1"))
+        health_status["checks"]["database"] = "healthy"
+    except Exception as e:
+        health_status["checks"]["database"] = f"unhealthy: {str(e)}"
+        health_status["status"] = "unhealthy"
+
+        health_status["checks"]["auth_service_circuit"] = {
+            "state": str(auth_breaker.current_state),
+            "failures": auth_breaker.fail_counter,
+            "last_failure": auth_breaker.last_failure if hasattr(auth_breaker, "last_failure") else None
+        }
+
+        return health_status
