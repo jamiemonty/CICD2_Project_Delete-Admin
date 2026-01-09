@@ -4,7 +4,6 @@ from docu_serve.database import get_db, engine
 from docu_serve.models import Base, User
 from docu_serve.schemas import DeleteResponse, DeletedUserSummary, UserUpdate, UserOut
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 from pybreaker import CircuitBreaker, CircuitBreakerError
