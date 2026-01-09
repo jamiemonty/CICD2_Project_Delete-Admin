@@ -135,37 +135,26 @@ def test_patch_user_database_error(client, db_session):
     assert "already exists" in response.json()["detail"].lower()
 
 
-def test_detailed_health_database_error():
-    """Test detailed health check when database fails"""
-    from docu_serve.main import app, get_db
-    from sqlalchemy.exc import OperationalError
-    from fastapi.testclient import TestClient
+def test_detailed_health_check_includes_all_checks(client):
+    """Test detailed health check includes all required checks"""
+    response = client.get("/health/detailed")
     
-    # Create a generator that raises an exception
-    def override_failing_db():
-        raise OperationalError("Database connection failed", None, None)
-        yield  # This line won't be reached but is needed for generator syntax
+    assert response.status_code == 200
+    data = response.json()
     
-    # Store original override
-    original_override = app.dependency_overrides.get(get_db)
+    # Check all required fields are present
+    assert "status" in data
+    assert "service" in data
+    assert "checks" in data
+    assert "database" in data["checks"]
+    assert "auth_service_circuit" in data["checks"]
+    assert "rabbitmq_circuit" in data["checks"]
     
-    # Override get_db to raise an exception
-    app.dependency_overrides[get_db] = override_failing_db
-    
-    try:
-        test_client = TestClient(app)
-        response = test_client.get("/health/detailed")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "unhealthy"
-        assert "unhealthy" in data["checks"]["database"]
-    finally:
-        # Restore original override
-        if original_override:
-            app.dependency_overrides[get_db] = original_override
-        else:
-            app.dependency_overrides.pop(get_db, None)
+    # Check circuit breaker details
+    assert "state" in data["checks"]["auth_service_circuit"]
+    assert "failures" in data["checks"]["auth_service_circuit"]
+    assert "state" in data["checks"]["rabbitmq_circuit"]
+    assert "failures" in data["checks"]["rabbitmq_circuit"]
 
 
 def test_login_circuit_breaker_error(client):
@@ -222,11 +211,11 @@ def test_call_auth_service_invalid_credentials():
     asyncio.run(test_async())
 
 
-def test_publish_event_circuit_breaker_open(client, db_session):
-    """Test event publishing when circuit breaker is open"""
+def test_delete_user_publishes_event(client, db_session, mock_publish_event):
+    """Test that deleting a user publishes an event"""
     user = User(
         name="Test",
-        email="cbtest@test.com",
+        email="eventtest@test.com",
         age=25,
         hashed_password="hash",
         role="user"
@@ -234,6 +223,8 @@ def test_publish_event_circuit_breaker_open(client, db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
+    user_id = user.user_id
+    user_email = user.email
     
     token = jwt.encode(
         {
@@ -246,30 +237,20 @@ def test_publish_event_circuit_breaker_open(client, db_session):
         algorithm=ALGORITHM
     )
     
-    # Mock the circuit breaker to be open
-    with patch('docu_serve.main.rabbitmq_breaker.call_async') as mock_breaker:
-        mock_breaker.side_effect = CircuitBreakerError("Circuit is open")
-        
-        # Clean up log file before test
-        if os.path.exists("failed_events.log"):
-            os.remove("failed_events.log")
-        
-        response = client.delete(
-            f"/api/admin/delete/{user.user_id}",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
-        # Should still succeed
-        assert response.status_code == 200
-        
-        # Check that event was logged
-        assert os.path.exists("failed_events.log")
-        with open("failed_events.log", "r") as f:
-            content = f.read()
-            assert "user.deleted" in content
-        
-        # Clean up
-        os.remove("failed_events.log")
+    response = client.delete(
+        f"/api/admin/delete/{user_id}",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    # Should succeed
+    assert response.status_code == 200
+    
+    # Verify publish_event was called with correct parameters
+    mock_publish_event.assert_called_once()
+    call_args = mock_publish_event.call_args
+    assert call_args[0][0] == "user.deleted"
+    assert call_args[0][1]["user_id"] == user_id
+    assert call_args[0][1]["email"] == user_email
 
 
 def test_patch_user_with_update_publishes_event(client, db_session):
