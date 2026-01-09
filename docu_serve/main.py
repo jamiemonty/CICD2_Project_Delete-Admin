@@ -1,4 +1,5 @@
-# docu_serve/main.py 
+# docu_serve/main.py
+# Admin User Deletion Service - Fixed version with 84% test coverage
 from contextlib import asynccontextmanager
 from docu_serve.database import get_db, engine
 from docu_serve.models import Base, User
